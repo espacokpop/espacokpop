@@ -1,0 +1,327 @@
+
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js"></script>
+
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <title>Espaço Capopeiro</title>
+
+  <!-- Estilos -->
+  <b:skin><![CDATA[
+    /* Estilos Gerais */
+    body { font-family: Arial, sans-serif; background-color: #121212; color: #e0e0e0; margin: 0; }
+
+    /* Cabeçalho */
+    header { background-color: #1f1f1f; padding: 40px 20px; text-align: center; color: #ff5c8d; display: flex; flex-direction: column; align-items: center; }
+    header h1 { font-size: 2.8em; font-weight: bold; margin: 10px 0; }
+    header h2 { font-size: 1.5em; color: #e0e0e0; margin-top: 10px; }
+
+    /* Barra de Pesquisa */
+    #search-bar { margin: 20px auto; text-align: center; }
+    #search-bar input { width: 70%; padding: 10px; border-radius: 20px; border: none; font-size: 1em; }
+
+    /* Navegação */
+    nav { background-color: #2b2b2b; padding: 15px; display: flex; justify-content: space-around; }
+    nav ul { list-style: none; display: flex; gap: 30px; margin: 0; padding: 0; }
+    nav a { color: #e0e0e0; font-size: 1.1em; text-decoration: none; }
+    nav a:hover { color: #ff5c8d; }
+
+    /* Menu Suspenso para Categorias */
+    .dropdown { position: relative; }
+    .dropdown-content { display: none; position: absolute; background-color: #3a3a3a; min-width: 150px; border-radius: 8px; margin-top: 5px; }
+    .dropdown-content a { color: #e0e0e0; padding: 10px; display: block; text-decoration: none; }
+    .dropdown-content a:hover { background-color: #ff5c8d; color: white; }
+    .dropdown:hover .dropdown-content { display: block; }
+
+    /* Conteúdo Principal */
+    .container { display: flex; padding: 20px; flex-wrap: wrap; }
+    main { flex: 2; padding: 20px; }
+    aside { width: 300px; padding: 20px; background-color: #1f1f1f; border-radius: 10px; }
+
+    /* Destaques do Dia */
+    .content-cards { display: grid; grid-template-columns: 1fr; gap: 20px; }
+    .card { background-color: #2b2b2b; padding: 20px; border-radius: 10px; display: flex; gap: 20px; align-items: center; }
+    .card img { width: 100px; height: 100px; border-radius: 10px; }
+    .card h3 { color: #ff5c8d; }
+    
+    /* Filtros e Seção Fanfics Novels */
+    .filter-section, .fanfic-grid { margin-top: 20px; }
+    .filter-section button, .fanfic-grid button { background-color: #ff5c8d; color: #fff; padding: 10px; border: none; border-radius: 5px; cursor: pointer; }
+    .fanfic-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px; }
+
+    /* Modo Noturno e Claro */
+    .light-mode { background-color: #ffffff !important; color: #000000 !important; }
+    
+    /* Botão Modo Noturno */
+    #night-mode-toggle { position: fixed; bottom: 100px; right: 10px; background: #ff5c8d; padding: 10px; color: #fff; border-radius: 50%; font-size: 1.2em; cursor: pointer; }
+
+    /* Modal de Login */
+    .modal { display: none; position: fixed; z-index: 1; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.4); padding-top: 60px; }
+    .modal-content { background-color: #333; margin: 5% auto; padding: 20px; border-radius: 10px; width: 30%; }
+    .modal-content h2 { color: #ff5c8d; }
+    .modal input { width: 100%; padding: 10px; margin: 10px 0; border-radius: 5px; border: none; }
+    .modal button { background-color: #ff5c8d; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; }
+    .modal button:hover { background-color: #ff3e77; }
+
+    /* Layout Responsivo */
+    @media (max-width: 768px) {
+      .container { flex-direction: column; }
+      aside { width: 100%; margin-top: 20px; }
+    }
+  ]]></b:skin>
+
+</head>
+<body>
+
+  <!-- Cabeçalho do Site -->
+  <header>
+    <h1>Espaço Capopeiro</h1>
+    <h2>Fanfics Video/Novel</h2>
+  </header>
+
+  <!-- Barra de Pesquisa -->
+  <div id="search-bar">
+    <input type="text" placeholder="Pesquise por fanfics, categorias ou autores..." />
+  </div>
+
+  <!-- Navegação Principal -->
+  <nav>
+    <ul>
+      <li><a href="#">Início</a></li>
+      <li><a href="#">Fanfics Novels</a></li>
+      <li><a href="#">IA</a></li>
+      <li class="dropdown">
+        <a href="#">Categorias</a>
+        <div class="dropdown-content">
+          <a href="#">Romance</a>
+          <a href="#">Terror</a>
+          <a href="#">Ficção Científica</a>
+          <a href="#">Fantasia</a>
+          <a href="#">Suspense</a>
+          <a href="#">Ação</a>
+          <a href="#">Drama</a>
+        </div>
+      </li>
+      <li><a href="#" id="login-btn">Iniciar Sessão</a></li>
+    </ul>
+  </nav>
+
+  <!-- Conteúdo Principal e Sidebar -->
+  <div class="container">
+    <!-- Seção principal para o Blogger -->
+    <b:section id="main" class="main" showaddelement="yes">
+      <b:widget id="Blog1" type="Blog" title="Espaço Capopeiro" />
+    </b:section>
+
+    <!-- Seção de Destaques -->
+    <main>
+      <section>
+        <h2>Destaques do Dia</h2>
+        <div class="content-cards">
+          <article class="card">
+            <img src="https://via.placeholder.com/100" alt="Imagem da Fanfic" />
+            <div>
+              <h3>Título da Fanfic</h3>
+              <p>Descrição breve da fanfic...</p>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <!-- Seção Fanfics Novels -->
+      <section class="fanfic-grid">
+        <h2>Fanfics Novels</h2>
+        <div class="grid">
+          <article class="card">
+            <h3>História 1</h3>
+            <p>Breve descrição...</p>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <!-- Sidebar -->
+    <aside>
+      <h2>Links Populares</h2>
+      <ul>
+        <li><a href="#">Fanfics Populares</a></li>
+        <li><a href="#">Novas Fanfics</a></li>
+        <li><a href="#">Mais Lidas</a></li>
+        <li><a href="#">Favoritas</a></li>
+      </ul>
+    </aside>
+  </div>
+
+  <!-- Botão Voltar ao Topo -->
+  <div id="back-to-top" style="position: fixed; bottom: 20px; right: 20px; cursor: pointer; display: none;" onclick="window.scrollTo({ top: 0, behavior: 'smooth' })">⬆</div>
+
+  <!-- Botão Modo Noturno -->
+  <div id="night-mode-toggle" onclick="toggleNightMode()">🌙</div>
+
+  <!-- Modal de Login -->
+  <div id="login-modal" class="modal">
+    <div class="modal-content">
+      <h2>Iniciar Sessão</h2>
+      <div id="login-form">
+        <input type="text" id="login-username" placeholder="Usuário ou E-mail" />
+        <input type="password" id="login-password" placeholder="Senha" />
+        <button onclick="login()">Entrar</button>
+        <p>Não tem uma conta? <a href="javascript:void(0);" onclick="showRegisterForm()">Clique aqui para se registrar</a></p>
+      </div>
+
+      <div id="register-form" style="display: none;">
+        <input type="text" id="register-username" placeholder="Escolha um nome de usuário ou e-mail" />
+        <input type="password" id="register-password" placeholder="Escolha uma senha" />
+        <button onclick="register()">Registrar</button>
+        <p>Já tem uma conta? <a href="javascript:void(0);" onclick="showLoginForm()">Clique aqui para fazer login</a></p>
+      </div>
+
+      <button onclick="closeModal()">Fechar</button>
+    </div>
+  </div>
+
+ <script>
+  const firebaseConfig = {
+    apiKey: "YOUR_API_KEY",
+    authDomain: "YOUR_AUTH_DOMAIN",
+    projectId: "YOUR_PROJECT_ID",
+    storageBucket: "YOUR_STORAGE_BUCKET",
+    messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+    appId: "YOUR_APP_ID",
+    measurementId: "YOUR_MEASUREMENT_ID"
+  };
+
+  const app = firebase.initializeApp(firebaseConfig);
+  const auth = firebase.auth();
+  const db = firebase.firestore();
+</script>
+<!-- Atualização do Modal de Login -->
+<script>
+  // Função para abrir o modal de login
+  document.getElementById("login-btn").onclick = function() {
+    document.getElementById("login-modal").style.display = "block";
+  }
+
+  // Função para fechar o modal
+  function closeModal() {
+    document.getElementById("login-modal").style.display = "none";
+  }
+
+  // Função para mostrar o formulário de registro
+  function showRegisterForm() {
+    document.getElementById("login-form").style.display = "none";
+    document.getElementById("register-form").style.display = "block";
+  }
+
+  // Função para mostrar o formulário de login
+  function showLoginForm() {
+    document.getElementById("login-form").style.display = "block";
+    document.getElementById("register-form").style.display = "none";
+  }
+
+  // Função de Login
+  function login() {
+    const email = document.getElementById("login-username").value;
+    const password = document.getElementById("login-password").value;
+    auth.signInWithEmailAndPassword(email, password)
+      .then((userCredential) => {
+        const user = userCredential.user;
+        showUserOptions();
+      })
+      .catch((error) => {
+        alert(error.message);
+      });
+  }
+
+  // Função de Registro
+  function register() {
+    const email = document.getElementById("register-username").value;
+    const password = document.getElementById("register-password").value;
+    auth.createUserWithEmailAndPassword(email, password)
+      .then((userCredential) => {
+        const user = userCredential.user;
+        showUserOptions();
+      })
+      .catch((error) => {
+        alert(error.message);
+      });
+  }
+
+  // Função para exibir as opções após login/registro
+  function showUserOptions() {
+    const user = auth.currentUser;
+    const userChoice = confirm("Login bem-sucedido! Você gostaria de ir para a sua biblioteca de conta ou continuar explorando as fanfics?");
+    if (userChoice) {
+      window.location.href = `perfil.html?user=${user.uid}`;  // Redireciona para a página do perfil
+    } else {
+      alert("Continuando a explorar as fanfics.");
+    }
+  }
+
+</script>
+
+<!-- Modal de Login -->
+<div id="login-modal" class="modal">
+  <div class="modal-content">
+    <h2>Iniciar Sessão</h2>
+    <div id="login-form">
+      <input type="text" id="login-username" placeholder="Usuário ou E-mail" />
+      <input type="password" id="login-password" placeholder="Senha" />
+      <button onclick="login()">Entrar</button>
+      <p>Não tem uma conta? <a href="javascript:void(0);" onclick="showRegisterForm()">Clique aqui para se registrar</a></p>
+    </div>
+
+    <div id="register-form" style="display: none;">
+      <input type="text" id="register-username" placeholder="Escolha um nome de usuário ou e-mail" />
+      <input type="password" id="register-password" placeholder="Escolha uma senha" />
+      <button onclick="register()">Registrar</button>
+      <p>Já tem uma conta? <a href="javascript:void(0);" onclick="showLoginForm()">Clique aqui para fazer login</a></p>
+    </div>
+
+    <button onclick="closeModal()">Fechar</button>
+  </div>
+</div>
+<!-- Página de perfil do usuário -->
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Minha Biblioteca</title>
+</head>
+<body>
+  <h1>Bem-vindo à sua Biblioteca</h1>
+  <div id="user-library">
+    <h2>Favoritas</h2>
+    <!-- Aqui vão as fanfics favoritas do usuário -->
+  </div>
+  <div id="user-history">
+    <h2>Histórias Lidas</h2>
+    <!-- Histórias lidas pelo usuário -->
+  </div>
+  <div id="user-dropped">
+    <h2>Histórias Droppadas</h2>
+    <!-- Histórias abandonadas -->
+  </div>
+
+  <script>
+    const userId = new URLSearchParams(window.location.search).get("user");
+
+    // Buscar as informações do usuário e exibir
+    db.collection("users").doc(userId).get()
+      .then(doc => {
+        if (doc.exists) {
+          const userData = doc.data();
+          // Exibir as fanfics favoritas, lidas, etc
+          document.getElementById("user-library").innerHTML = `<ul>${userData.favoritas.map(fanfic => `<li>${fanfic}</li>`).join('')}</ul>`;
+        } else {
+          console.log("Usuário não encontrado!");
+        }
+      });
+  </script>
+</body>
+</html>
+
+
