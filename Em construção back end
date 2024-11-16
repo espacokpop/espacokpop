@@ -1,53 +1,134 @@
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <title>Espaço Capopeiro - Em Construção</title>
-    <style>
-        /* Estilo da página */
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #121212;
-            color: #e0e0e0;
-            margin: 0;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            text-align: center;
-        }
-        h1 {
-            color: #ff5c8d;
-            font-size: 3em;
-            margin-bottom: 20px;
-        }
-        p {
-            font-size: 1.5em;
-            line-height: 1.6;
-        }
-        .container {
-            max-width: 600px;
-            padding: 20px;
-        }
-        footer {
-            position: absolute;
-            bottom: 10px;
-            font-size: 0.9em;
-            color: #888;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>Espaço Capopeiro</h1>
-        <p>Estamos trabalhando duro para criar uma experiência incrível para você!</p>
-        <p>Volte em breve para conferir o resultado. 💖</p>
-    </div>
-    <footer>
-        © 2024 Espaço Capopeiro. Todos os direitos reservados.
-    </footer>
-</body>
-</html>
+// Importando dependências
+const functions = require("firebase-functions");
+const admin = require("firebase-admin");
+const express = require("express");
+const bodyParser = require("body-parser");
+
+// Inicializando o Firebase Admin SDK
+admin.initializeApp();
+
+// Configurando o Firestore
+const db = admin.firestore();
+
+// Criando o app Express
+const app = express();
+app.use(bodyParser.json());
+
+// Middleware para autenticação
+const authenticate = async (req, res, next) => {
+  const idToken = req.headers.authorization;
+
+  if (!idToken) {
+    return res.status(401).send("Token de autenticação não fornecido.");
+  }
+
+  try {
+    const decodedToken = await admin.auth().verifyIdToken(idToken);
+    req.user = decodedToken;
+    next();
+  } catch (error) {
+    return res.status(401).send("Token inválido ou expirado.");
+  }
+};
+
+// Função para tratar erros e enviar uma resposta consistente
+const handleError = (res, error) => {
+  console.error(error);
+  res.status(500).send({ error: error.message });
+};
+
+// Rota: Criar usuário
+app.post("/createUser", async (req, res) => {
+  const { email, password } = req.body;
+  if (!email || !password) return res.status(400).send("E-mail e senha são obrigatórios.");
+  try {
+    const userRecord = await admin.auth().createUser({ email, password });
+    res.status(201).send({ uid: userRecord.uid, message: "Usuário criado com sucesso!" });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+// Rota: Adicionar item à biblioteca
+app.post("/addToLibrary", authenticate, async (req, res) => {
+  const userId = req.user.uid;
+  const { item } = req.body;
+  if (!item) return res.status(400).send("Item é obrigatório.");
+  try {
+    const libraryRef = db.collection("libraries").doc(userId);
+    await libraryRef.set({ items: admin.firestore.FieldValue.arrayUnion(item) }, { merge: true });
+    res.status(200).send("Item adicionado à biblioteca com sucesso.");
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+// Rota: Obter biblioteca
+app.get("/library", authenticate, async (req, res) => {
+  const userId = req.user.uid;
+  try {
+    const libraryRef = db.collection("libraries").doc(userId);
+    const doc = await libraryRef.get();
+    if (!doc.exists) return res.status(404).send("Biblioteca não encontrada.");
+    res.status(200).send(doc.data());
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+// Rota: Adicionar item aos favoritos
+app.post("/addToFavorites", authenticate, async (req, res) => {
+  const userId = req.user.uid;
+  const { item } = req.body;
+  if (!item) return res.status(400).send("Item é obrigatório.");
+  try {
+    const favoritesRef = db.collection("favorites").doc(userId);
+    await favoritesRef.set({ items: admin.firestore.FieldValue.arrayUnion(item) }, { merge: true });
+    res.status(200).send("Item adicionado aos favoritos com sucesso.");
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+// Rota: Obter favoritos
+app.get("/favorites", authenticate, async (req, res) => {
+  const userId = req.user.uid;
+  try {
+    const favoritesRef = db.collection("favorites").doc(userId);
+    const doc = await favoritesRef.get();
+    if (!doc.exists) return res.status(404).send("Favoritos não encontrados.");
+    res.status(200).send(doc.data());
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+// Rota: Marcar item como assistido
+app.post("/markAsWatched", authenticate, async (req, res) => {
+  const userId = req.user.uid;
+  const { item } = req.body;
+  if (!item) return res.status(400).send("Item é obrigatório.");
+  try {
+    const watchedRef = db.collection("watched").doc(userId);
+    await watchedRef.set({ items: admin.firestore.FieldValue.arrayUnion(item) }, { merge: true });
+    res.status(200).send("Item marcado como assistido.");
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+// Rota: Obter itens assistidos
+app.get("/watched", authenticate, async (req, res) => {
+  const userId = req.user.uid;
+  try {
+    const watchedRef = db.collection("watched").doc(userId);
+    const doc = await watchedRef.get();
+    if (!doc.exists) return res.status(404).send("Nenhum item assistido encontrado.");
+    res.status(200).send(doc.data());
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+// Exportando as rotas como funções do Firebase
+exports.api = functions.https.onRequest(app);
