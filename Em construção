@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>Espaço Capopeiro - Em Construção</title>
+    <style>
+        /* Estilo da página */
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #121212;
+            color: #e0e0e0;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            text-align: center;
+        }
+        h1 {
+            color: #ff5c8d;
+            font-size: 3em;
+            margin-bottom: 20px;
+        }
+        p {
+            font-size: 1.5em;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 600px;
+            padding: 20px;
+        }
+        footer {
+            position: absolute;
+            bottom: 10px;
+            font-size: 0.9em;
+            color: #888;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Espaço Capopeiro</h1>
+        <p>Estamos trabalhando duro para criar uma experiência incrível para você!</p>
+        <p>Volte em breve para conferir o resultado. 💖</p>
+    </div>
+    <footer>
+        © 2024 Espaço Capopeiro. Todos os direitos reservados.
+    </footer>
+</body>
+</html>
