@@ -1,0 +1,134 @@
+// Importando dependências
+const functions = require('firebase-functions');
+const admin = require('firebase-admin');
+const express = require('express');
+const bodyParser = require('body-parser');
+
+// Inicializando o Firebase Admin SDK
+admin.initializeApp();
+
+// Criando a aplicação Express
+const app = express();
+
+// Usando body-parser para processar requisições em JSON
+app.use(bodyParser.json());
+
+// Middleware para verificar se o usuário está autenticado
+const checkAuth = (req, res, next) => {
+  const idToken = req.headers.authorization;
+  if (!idToken) {
+    return res.status(401).send('Token de autenticação não encontrado');
+  }
+
+  // Verificando se o token é válido
+  admin.auth().verifyIdToken(idToken)
+    .then(decodedToken => {
+      req.user = decodedToken;  // Salva os dados do usuário na requisição
+      next();  // Chama a próxima função
+    })
+    .catch(error => {
+      res.status(401).send('Token inválido');
+    });
+};
+
+// Rota para criar um novo usuário
+app.post('/createUser', (req, res) => {
+  const { email, password } = req.body;
+
+  // Criando um novo usuário no Firebase Authentication
+  admin.auth().createUser({
+    email,
+    password,
+  })
+    .then(userRecord => {
+      res.status(200).send({ userId: userRecord.uid });
+    })
+    .catch(error => {
+      res.status(500).send(error);
+    });
+});
+
+// Rota para fazer login de um usuário
+app.post('/login', (req, res) => {
+  const { email, password } = req.body;
+
+  // Tentando recuperar o usuário pelo email
+  admin.auth().getUserByEmail(email)
+    .then(userRecord => {
+      res.status(200).send({ uid: userRecord.uid });
+    })
+    .catch(error => {
+      res.status(500).send('Erro ao fazer login: ' + error.message);
+    });
+});
+
+// Rota para obter a biblioteca do usuário
+app.get('/library', checkAuth, (req, res) => {
+  const userId = req.user.uid;  // Pegando o UID do usuário
+
+  const libraryRef = admin.firestore().collection('libraries').doc(userId);
+  libraryRef.get()
+    .then(doc => {
+      if (!doc.exists) {
+        return res.status(404).send('Biblioteca não encontrada');
+      }
+      res.status(200).send(doc.data());  // Retorna os dados da biblioteca
+    })
+    .catch(error => {
+      res.status(500).send(error);
+    });
+});
+
+// Rota para adicionar um item à biblioteca
+app.post('/addToLibrary', checkAuth, (req, res) => {
+  const userId = req.user.uid;
+  const { item } = req.body;  // O item que o usuário quer adicionar (exemplo: Fanfics, vídeos)
+
+  const libraryRef = admin.firestore().collection('libraries').doc(userId);
+  libraryRef.update({
+    items: admin.firestore.FieldValue.arrayUnion(item)  // Adiciona o item na lista de itens
+  })
+    .then(() => {
+      res.status(200).send('Item adicionado à biblioteca');
+    })
+    .catch(error => {
+      res.status(500).send(error);
+    });
+});
+
+// Rota para obter os favoritos do usuário
+app.get('/favorites', checkAuth, (req, res) => {
+  const userId = req.user.uid;  // Pegando o UID do usuário
+
+  const favoritesRef = admin.firestore().collection('favorites').doc(userId);
+  favoritesRef.get()
+    .then(doc => {
+      if (!doc.exists) {
+        return res.status(404).send('Favoritos não encontrados');
+      }
+      res.status(200).send(doc.data());  // Retorna os dados dos favoritos
+    })
+    .catch(error => {
+      res.status(500).send(error);
+    });
+});
+
+// Rota para adicionar um item aos favoritos
+app.post('/addFavorite', checkAuth, (req, res) => {
+  const userId = req.user.uid;
+  const { item } = req.body;  // O item que o usuário quer adicionar aos favoritos
+
+  const favoritesRef = admin.firestore().collection('favorites').doc(userId);
+  favoritesRef.update({
+    items: admin.firestore.FieldValue.arrayUnion(item)  // Adiciona o item aos favoritos
+  })
+    .then(() => {
+      res.status(200).send('Item adicionado aos favoritos');
+    })
+    .catch(error => {
+      res.status(500).send(error);
+    });
+});
+
+// Função para exportar a API como uma função do Firebase
+exports.api = functions.https.onRequest(app);
