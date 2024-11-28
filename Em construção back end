@@ -1,53 +1,167 @@
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <title>Espaço Capopeiro - Em Construção</title>
-    <style>
-        /* Estilo da página */
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #121212;
-            color: #e0e0e0;
-            margin: 0;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            text-align: center;
-        }
-        h1 {
-            color: #ff5c8d;
-            font-size: 3em;
-            margin-bottom: 20px;
-        }
-        p {
-            font-size: 1.5em;
-            line-height: 1.6;
-        }
-        .container {
-            max-width: 600px;
-            padding: 20px;
-        }
-        footer {
-            position: absolute;
-            bottom: 10px;
-            font-size: 0.9em;
-            color: #888;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>Espaço Capopeiro</h1>
-        <p>Estamos trabalhando duro para criar uma experiência incrível para você!</p>
-        <p>Volte em breve para conferir o resultado. 💖</p>
-    </div>
-    <footer>
-        © 2024 Espaço Capopeiro. Todos os direitos reservados.
-    </footer>
-</body>
-</html>
+firebase-backend/
+├── index.js
+const express = require("express");
+const admin = require("firebase-admin");
+const jwt = require("jsonwebtoken");
+const bodyParser = require("body-parser");
+
+// Inicializando o Firebase Admin
+const serviceAccount = require("./serviceAccountKey.json");
+
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
+  databaseURL: "https://hospedagem-97ba1-default-rtdb.firebaseio.com",
+});
+
+const db = admin.firestore();
+const app = express();
+
+app.use(bodyParser.json());
+
+// Middleware de autenticação
+const authenticate = async (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return res.status(401).send({ error: "Token não fornecido ou inválido." });
+  }
+
+  const idToken = authHeader.split(" ")[1];
+  try {
+    const decodedToken = await admin.auth().verifyIdToken(idToken);
+    req.user = decodedToken;
+    next();
+  } catch (error) {
+    console.error("Erro ao verificar token:", error);
+    res.status(403).send({ error: "Acesso não autorizado." });
+  }
+};
+
+// Rotas
+
+// Autenticação via OIDC
+app.post("/auth/oidc", async (req, res) => {
+  const { idToken } = req.body;
+
+  if (!idToken) {
+    return res.status(400).send({ error: "Token de ID não fornecido." });
+  }
+
+  try {
+    const decodedToken = jwt.decode(idToken, { complete: true });
+    if (!decodedToken) {
+      return res.status(400).send({ error: "Token de ID inválido." });
+    }
+
+    const { name, email } = decodedToken.payload;
+
+    const userRecord = await admin.auth().getUserByEmail(email).catch(async () => {
+      return admin.auth().createUser({ email, displayName: name });
+    });
+
+    const customToken = await admin.auth().createCustomToken(userRecord.uid);
+    res.status(200).send({ customToken });
+  } catch (error) {
+    console.error("Erro durante autenticação OIDC:", error);
+    res.status(500).send({ error: "Erro ao autenticar usuário." });
+  }
+});
+
+// Rota protegida
+app.get("/protected", authenticate, async (req, res) => {
+  const userId = req.user.uid;
+
+  try {
+    const userDoc = await db.collection("users").doc(userId).get();
+    if (!userDoc.exists) {
+      return res.status(404).send({ error: "Usuário não encontrado." });
+    }
+
+    res.status(200).send(userDoc.data());
+  } catch (error) {
+    console.error("Erro ao buscar dados do usuário:", error);
+    res.status(500).send({ error: "Erro ao buscar dados." });
+  }
+});
+
+// Atualizar biblioteca
+app.post("/library", authenticate, async (req, res) => {
+  const userId = req.user.uid;
+  const { items } = req.body;
+
+  if (!items || !Array.isArray(items)) {
+    return res.status(400).send({ error: "Itens inválidos fornecidos." });
+  }
+
+  try {
+    const libraryRef = db.collection("libraries").doc(userId);
+    await libraryRef.set({ items }, { merge: true });
+    res.status(200).send({ message: "Biblioteca atualizada com sucesso." });
+  } catch (error) {
+    console.error("Erro ao atualizar biblioteca:", error);
+    res.status(500).send({ error: "Erro ao atualizar biblioteca." });
+  }
+});
+
+// Obter biblioteca
+app.get("/library", authenticate, async (req, res) => {
+  const userId = req.user.uid;
+
+  try {
+    const libraryRef = db.collection("libraries").doc(userId);
+    const libraryDoc = await libraryRef.get();
+
+    if (!libraryDoc.exists) {
+      return res.status(404).send({ error: "Biblioteca não encontrada." });
+    }
+
+    res.status(200).send(libraryDoc.data());
+  } catch (error) {
+    console.error("Erro ao buscar biblioteca:", error);
+    res.status(500).send({ error: "Erro ao buscar biblioteca." });
+  }
+});
+
+// Inicializar servidor
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Servidor rodando em http://localhost:${PORT}`);
+});
+
+├── package.json
+{
+  "name": "firebase-backend",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "firebase-admin": "^11.8.0",
+    "body-parser": "^1.20.2",
+    "jsonwebtoken": "^9.0.0"
+  }
+}
+
+├── serviceAccountKey.json
+{
+  "type": "service_account",
+  "project_id": "hospedagem-97ba1",
+  "private_key_id": "f52167060d10e6f4f3dac26f99653b5aa967cf09",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQCJpqjnIc273SFk\nbtnmr9JvBDXAKvVecsqb7A4zX8Ht+Zg+FdLjiXq1AfiMnCEXs/BHjpOUZkU+3em7\nDYjW9etGo/c/LGg2h5sGlv16TBRVSV7ElbCtfcQs/pkcfTLcgKG0Z+UgdUFCEFy1\nlOiVJleYGUkZ4K0LihLrJLwaDgnOcIBfBYCbWW6Eg8oRzJqxWtedtRImOQxcgp/m\nYd5lCfcjKxDv4UZuJDDw1PrPzTY1/gEu5P0ycVdNirHEGcPd2qDN6pnL2GSPNDvV\nRBEQbum9fYCwiQu50X14w7Rsh3Za2Vza+aoME5+PSXs/oSL6BW5CLw9vM8246NaZ\naW0oG1I9AgMBAAECggEARGa3Xuea2uRXQBefmzU6niUa6qvOM0laqiGiqt/GOBHE\nF/HzUlNSURkyH/lDrooheAV/C4rIlSVkDKn8mkkoyXkYF2HjRVmcbSlhu0CMCBeG\nCq0R1xx8fBlmD1SdjhozgLjyEG+D5qbH0wm0i806UOAbxcqyYt4RaZzfBhl8wQLH\nC37gs2Yo5y5FHZ/Ga17flN0+uKq+im0lFrGsIN2oQnHdQXzCvDM/qLo/qYQQPvnY\nPdPgFbshE6lVeNEkmM25t0SWT+ykCzDmhazCvTj3PwA/AeHbMSBjUZ3jnUikZddw\ncZ2J14PgSJtq2NoRpgWgAKvvqCb1wQ5W00r95CJ9xwKBgQC+AAFy3iUtjbQ/sx/7\nAy60fXxHxMtHXQwCUAKL6hWngufmior6mgzxof4LhKQB/1/2k2x9CU/Nwp+/VvF7\nqEwcHv0aU6EF+4eeH8rygBnmq5rc2AG3/nOdJdyKIsazo0SHQ+qQno9xxJyFwEvy\nSZKRqBto15wwbIpJi1FF2pSNMwKBgQC5d3OtEHaZzfvspZh85R8Nn+YhFRerCkI9\nGs9JFxiKaJhI/cxFGZOqc43qkTD+9LMXTx8Tj/X8XhiQ+XHlQ+d1qElwCuhjTnTD\nW5cO3adStVHwCTY87oI5p4T0OErCmGwb6KWSY9R+oPbk+sq1sKOdTNUslVjYrM8u\nmSJmEBJCzwKBgFYDoKRE5yXRQemYiQDU9v7k1C+VasV63SXq3MxEg9sayys2Syaa\nOQPm5yCFws3Ys7PoF7QfVA59bl5r2NS3YwVUDhcuBvazYTj3gaP41ED2LRyPeW+3\ndNWOv2GVzsiiQDLQT097SMsjTAzM+lTMc9sW9JmpCl9ts8kJlhh+lMO7AoGBALDK\nO7rhsZwk7JqEs1mCclpjbFNmrrv8uG1Uy/iJCnyM/XS+cOQBYHAfXE0Xf5PYn4p9\ngkr8dGfPLi2ribUYSF8wPmiODTz0QXsjKFgkU2YUrvlXXpswY3Qfyi2eJy1da9gi\nqQllHd5jA1X79hTBPwUngyDPb/SCra9mi5KsiSujAoGAMh7Ti8AFJ6HENIA8hzbC\nObUIvNlrzzX73t+sqTWQ6qcgudra5IyQuaZQxvDIHCVE+Cc/2drrQrlbWMA7amkD\nYDFMyhO/K8ZrcsyxzeO31/ZSfsZYUPJzalNVVxSXEnJhzeZPNyCEEKdimoHAMJeu\n2ngzRNshDuWUWeYr2xttFcQ=\n-----END PRIVATE KEY-----\n",
+  "client_email": "firebase-adminsdk-fnnjk@hospedagem-97ba1.iam.gserviceaccount.com",
+  "client_id": "116168287766532367803",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/firebase-adminsdk-fnnjk%40hospedagem-97ba1.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}
+
+├── .gitignore
+git init
+git add .
+git commit -m "Subindo backend para o GitHub"
+git branch -M main
+git remote add origin https://github.com/seu-usuario/seu-repositorio.git
+git push -u origin main
